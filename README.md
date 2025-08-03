@@ -1,185 +1,418 @@
-# ICCV 2023 HumanMAC
+# Human Motion Prediction with PISL and HumanMAC
 
-Code for "HumanMAC: Masked Motion Completion for Human Motion Prediction".
+一个基于物理约束样条学习(PISL)和HumanMAC扩散模型的人体动作预测项目。
 
-[Ling-Hao Chen](https://lhchen.top/)\*<sup>1</sup>, Jiawei Zhang\*<sup>2</sup>, [Yewen Li](https://scholar.google.com/citations?user=W5796yEAAAAJ)<sup>3</sup>, [Yiren Pang](https://www.linkedin.com/in/yrpang/)<sup>2</sup>, [Xiaobo Xia](https://xiaoboxia.github.io/)<sup>4</sup>, [Tongliang Liu](https://tongliang-liu.github.io/)<sup>4</sup>
+## 🎯 项目概述
 
-<sup>1</sup>Tsinghua University, <sup>2</sup>Xidian University, <sup>3</sup>Nanyang Technological University, <sup>4</sup>The University of Sydney
+本项目创新性地结合了：
+- **PISL (Physics-Informed Spline Learning)**: 基于B样条的物理约束运动学方程学习
+- **HumanMAC扩散模型**: 基于Transformer的条件扩散生成模型
+- **自适应融合**: 智能融合两种预测方法，确保预测的准确性和物理合理性
 
-[[Project Page](https://lhchen.top/Human-MAC/)] | [[Preprint](https://arxiv.org/abs/2302.03665)] | [[中文文档](doc-CN/README.md)] | [[video](https://www.youtube.com/watch?v=vfde9GdUHBs)] | [[code](https://github.com/LinghaoChan/HumanMAC)]
-
-> Human motion prediction is a classical problem in computer vision and computer graphics, which has a wide range of practical applications. Previous effects achieve great empirical performance based on an encoding-decoding style. The methods of this style work by first encoding previous motions to latent representations and then decoding the latent representations into predicted motions. However, in practice, they are still unsatisfactory due to several issues, including complicated loss constraints, cumbersome training processes, and scarce switch of different categories of motions in prediction. In this paper, to address the above issues, we jump out of the foregoing style and propose a novel framework from a new perspective. Specifically, our framework works in a denoising diffusion style. In the training stage, we learn a motion diffusion model that generates motions from random noise. In the inference stage, with a denoising procedure, we make motion prediction conditioning on observed motions to output more continuous and controllable predictions. The proposed framework enjoys promising algorithmic properties, which only needs one loss in optimization and is trained in an end-to-end manner. Additionally, it accomplishes the switch of different categories of motions effectively, which is significant in realistic tasks, e.g., the animation task. Comprehensive experiments on benchmarks confirm the superiority of the proposed framework. The project page is available at https://lhchen.top/Human-MAC.
-
-## 📢 News
-
-**[2024/05/06]: We release the fastest controllable motion generation model ([MotionLCM](https://github.com/Dai-Wenxun/MotionLCM)).**
-
-**[2023/12/19]: HumanMAC works as a motion prediction module in [Interactive Humanoid](https://arxiv.org/pdf/2312.08983.pdf).**
-
-**[2023/10/21]: Check out my ICML-24 work [HumanTOMATO](https://lhchen.top/HumanTOMATO), the FIRST attempt to generate whole-body motions with text description.**
-
-**[2023/10/17]: Check out my latest open-source project [UniMoCap](https://github.com/LinghaoChan/UniMoCap), a unifier for mocap-based text-motion datasets.**
-
-**[2023/07/14]: HumanMAC is accepted by ICCV 2023!**
-
-**[2023/03/26]: HumanMAC code released!**
-
-## 🗂️ Preparation
-
-### Data
-
-**Datasets for [Human3.6M](http://vision.imar.ro/human3.6m/description.php) and [HumanEva-I](http://humaneva.is.tue.mpg.de/)**:
-
-We adopt the data preprocessing from [GSPS](https://github.com/wei-mao-2019/gsps), which you can refer to [here](https://drive.google.com/drive/folders/1sb1n9l0Na5EqtapDVShOJJ-v6o-GZrIJ) and download all files into the `./data` directory.
-
-**Dataset for zero-shot experiments on [AMASS](https://amass.is.tue.mpg.de/)**:
-
-We retarget skeletons in the AMASS dataset to the Human3.6M dataset. We provide a small subset retargeted AMASS motion here. The retargeted sub-dataset can be downloaded from [Google Drive](https://drive.google.com/file/d/1ysXf0rpxNqx3FScIf5hkk7JIyM_54aLW/view) ([Baidu Netdisk](https://pan.baidu.com/s/1vljNdr7CwBgYlF2QX8S5EA?pwd=qnue)). And put it in the `./data` directory. The retargeting process is detailed in [`./motion-retargeting`](./motion-retargeting).
-
-Final `./data` directory structure is shown below:
+## 📁 项目结构
 
 ```
-data
-├── amass_retargeted.npy
-├── data_3d_h36m.npz
-├── data_3d_h36m_test.npz
-├── data_3d_humaneva15.npz
-├── data_3d_humaneva15_test.npz
-├── data_multi_modal
-│   ├── data_candi_t_his25_t_pred100_skiprate20.npz
-│   └── t_his25_1_thre0.500_t_pred100_thre0.100_filtered_dlow.npz
-└── humaneva_multi_modal
-    ├── data_candi_t_his15_t_pred60_skiprate15.npz
-    └── t_his15_1_thre0.500_t_pred60_thre0.010_index_filterd.npz
+human_motion_prediction/
+├── models/                     # 核心模型实现
+│   ├── pisl_spline.py         # PISL样条学习模块
+│   ├── humanmac_diffusion.py  # HumanMAC扩散模型
+│   └── fusion_model.py        # 融合预测模型
+├── data/                      # 数据处理模块
+│   └── preprocessing.py       # 数据预处理和加载
+├── training/                  # 训练相关
+│   └── train_fusion.py        # 融合模型训练脚本
+├── evaluation/                # 评估模块
+│   ├── metrics.py             # 评估指标计算
+│   └── visualize.py           # 可视化工具
+├── configs/                   # 配置文件
+│   └── config.yaml            # 主配置文件
+└── inference.py               # 推理脚本
+examples/                      # 示例和演示
+├── demo.py                    # 完整功能演示
+└── simple_demo.py             # 简化演示
+setup.py                       # 项目安装脚本
+requirements.txt               # 依赖列表
 ```
 
-### Pretrained Model
+## 🚀 快速开始
 
-To make the visualization of HumanMAC's various abilities convenient, we provide pretrained model [Google Drive](https://drive.google.com/file/d/1Jah4aIbrsSRTBqSxzT-MI55fD62PGxCT/view?usp=sharing)  ([Baidu Netdisk](https://pan.baidu.com/s/1kX88ya6J7j-pG46Se12Xkg?pwd=haj8)) on Human3.6M. The pretrained model need to be put in the `./checkpoints` directory.
+### 1. 环境准备
 
-### Environment Setup
+#### 选项A: 使用pip安装（推荐）
 
-```
-sh install.sh
-```
+```bash
+# 克隆项目（如果从git仓库）
+git clone <repository_url>
+cd human_motion_prediction
 
-## 🔧 Training
+# 创建虚拟环境（推荐）
+python3 -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 或者 venv\Scripts\activate  # Windows
 
-For Human3.6M:
+# 安装依赖
+pip install -r requirements.txt
 
-```
-python main.py --cfg h36m --mode train
-```
-
-For HumanEva-I:
-
-```
-python main.py --cfg humaneva --mode train
-```
-
-After running the command, a directory named `<DATASET>_<INDEX> ` is created in the `./results` directory (`<DATASET>` in `{'h36m', 'humaneva'}`, `<INDEX>` is equal to the number of directories in `./results`). During the training process, the `gif`s are stored in `./<DATASET>_<INDEX>/out`, log files are stored in `./<DATASET>_<INDEX>/log`, model checkpoints are stored in `./<DATASET>_<INDEX>/models`, and metrics are stored in `./<DATASET>_<INDEX>/results`.
-
-## 📽 Visualization of Motion Prediction
-
-![](./demos/pred.gif)
-
-For Human3.6M:
-
-```
-python main.py --cfg h36m --mode pred --vis_row 3 --vis_col 10 --ckpt ./checkpoints/h36m_ckpt.pt
+# 安装项目
+pip install -e .
 ```
 
-For HumanEva-I:
+#### 选项B: 使用conda安装
 
-```
-python main.py --cfg humaneva --mode pred --vis_row 3 --vis_col 10 --ckpt ./checkpoints/humaneva_ckpt.pt
-```
+```bash
+# 创建conda环境
+conda create -n motion_pred python=3.8
+conda activate motion_pred
 
-`vis_row` and `vis_col` represent the number of rows and columns of the drawn `gif`s respectively. There are two `gif`s for each category of motions in the`<DATASET>`, each `gif` contains `vis_row` motions, and each motion has `vis_col` candidate predictions. Those `gif`s can be found at `./inference/<DATASET>_<INDEX>/out`.
+# 安装PyTorch（根据您的CUDA版本）
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
-## 🔀 Motion Switch
-
-![](/demos/switch.gif)
-
-Visualization of switch ability: 
-
-```
-python main.py --mode switch --ckpt ./checkpoints/h36m_ckpt.pt
+# 安装其他依赖
+pip install -r requirements.txt
+pip install -e .
 ```
 
-The `vis_switch_num` `gif`s will be stored in `. /inference/switch_<INDEX>/out`. Each `gif` contains 30 motions, and these motions will eventually switch to one of them.
+### 2. 数据准备
 
-## 🕹️ Controllable Motion Prediction
+#### Human3.6M数据集（推荐）
 
-![](./demos/control.gif)
-
-Visualization of controllable motion prediction: 
-
-```
-python main.py --mode control --ckpt ./checkpoints/h36m_ckpt.pt
-```
-
-7 `gif`s will be stored in `. /inference/<CONTROL>_<INDEX>/out`, each `gif` has `vis_row` motions and each motion has `vis_col` candidate predictions. `<CONTROL>` corresponds to `{'right_leg', 'left_leg', 'torso', 'left_arm', 'right_arm', 'fix_lower', 'fix_upper'}`.
-
-## 🎯 Zero-shot Prediction on AMASS
-
-![](./demos/zero_shot.gif)
-
-Visualization of zero-shot on the AMASS dataset:
-
-```
-python main.py --mode zero_shot --ckpt ./checkpoints/h36m_ckpt.pt
+```bash
+# 下载Human3.6M数据集
+# 将数据放置在 data/human36m/ 目录下
+mkdir -p data/human36m
+# 复制您的.h5文件到此目录
 ```
 
-The `gif`s of the zero-shot experiment will be stored in `./inference/zero_shot_<INDEX>/out`, with the same number of motions set by `vis_col` and `vis_row`.
+#### 使用示例数据
 
-## 🧐 Evaluation
+```bash
+# 运行简化演示（无需外部数据）
+python3 examples/simple_demo.py
 
-Evaluate on Human3.6M:
-
-```
-python main.py --cfg h36m --mode eval --ckpt ./checkpoints/h36m_ckpt.pt
-```
-
-Evaluate on HumanEva-I:
-
-```
-python main.py --cfg humaneva --mode eval --ckpt ./checkpoints/humaneva_ckpt.pt
+# 运行完整演示（使用生成的示例数据）
+python examples/demo.py
 ```
 
-**Note**: We parallelize the process of evaluating metrics (APD, ADE, FDE, MMADE, and MMFDE) to speed up the process, so this part is strictly require GPU.
+### 3. 配置设置
 
-## 🌹 Acknowledgments
+编辑 `human_motion_prediction/configs/config.yaml` 文件：
 
-We would like to thank Mr. Yu-Kun Zhou from Xidian University, and Mr. [Wenhao Yang](http://www.lamda.nju.edu.cn/yangwh/) from Nanjing University for providing significant suggestions and technical support.
-
-Part of the code is borrowed from the [DLow](https://github.com/Khrylx/DLow) and [GSPS](https://github.com/wei-mao-2019/gsps) repo.
-
-## 📚 License
-
-This code is distributed under an [MIT LICENSE](https://github.com/LinghaoChan/HumanMAC/blob/main/LICENSE). Note that our code depends on other libraries and datasets which each have their own respective licenses that must also be followed.
-
-## 🤝 Citation
-
-Please consider citing our paper if you find it helpful in your research:
-
+```yaml
+# 主要配置项
+data_config:
+  data_path: "data/human36m"      # 数据路径
+  sequence_length: 50             # 历史序列长度
+  prediction_length: 25           # 预测长度
+  
+model_config:
+  pisl:
+    degree: 3                     # B样条阶数
+    n_control_points: 10          # 控制点数量
+  diffusion:
+    num_timesteps: 1000           # 扩散步数
+    beta_schedule: "cosine"       # 噪声调度
+    
+training_config:
+  batch_size: 32                  # 批次大小
+  learning_rate: 0.001            # 学习率
+  num_epochs: 100                 # 训练轮数
 ```
-@inproceedings{chen2023humanmac,
-  title={Humanmac: Masked motion completion for human motion prediction},
-  author={Chen, Ling-Hao and Zhang, Jiawei and Li, Yewen and Pang, Yiren and Xia, Xiaobo and Liu, Tongliang},
-  booktitle={Proceedings of the IEEE/CVF International Conference on Computer Vision},
-  pages={9544--9555},
-  year={2023}
+
+## 🔧 使用方法
+
+### 训练模型
+
+```bash
+# 使用默认配置训练
+python human_motion_prediction/training/train_fusion.py
+
+# 指定配置文件训练
+python human_motion_prediction/training/train_fusion.py --config configs/config.yaml
+
+# 从检查点恢复训练
+python human_motion_prediction/training/train_fusion.py --resume checkpoints/latest.pth
+
+# 使用多GPU训练
+python human_motion_prediction/training/train_fusion.py --multi_gpu
+```
+
+### 模型推理
+
+```bash
+# 单个序列预测
+python human_motion_prediction/inference.py \
+    --config configs/config.yaml \
+    --model checkpoints/best_model.pth \
+    --input data/test_sequence.npy \
+    --output results/prediction.npy
+
+# 批量预测
+python human_motion_prediction/inference.py \
+    --config configs/config.yaml \
+    --model checkpoints/best_model.pth \
+    --batch_mode \
+    --input_dir data/test_sequences/ \
+    --output_dir results/predictions/
+
+# 不同预测模式
+python human_motion_prediction/inference.py \
+    --model checkpoints/best_model.pth \
+    --mode pisl_only          # 仅使用PISL预测
+    # --mode diffusion_only    # 仅使用扩散模型预测
+    # --mode fusion           # 使用融合预测（默认）
+```
+
+### 评估模型
+
+```bash
+# 评估模型性能
+python human_motion_prediction/inference.py \
+    --config configs/config.yaml \
+    --model checkpoints/best_model.pth \
+    --evaluate \
+    --test_data data/test_set.h5 \
+    --save_metrics results/metrics.json
+
+# 生成可视化结果
+python human_motion_prediction/inference.py \
+    --config configs/config.yaml \
+    --model checkpoints/best_model.pth \
+    --visualize \
+    --output_dir results/visualizations/
+```
+
+## 📊 监控和日志
+
+### TensorBoard监控
+
+```bash
+# 启动TensorBoard
+tensorboard --logdir logs/tensorboard
+
+# 在浏览器中访问 http://localhost:6006
+```
+
+### Weights & Biases监控
+
+```bash
+# 登录W&B（首次使用）
+wandb login
+
+# 训练时会自动记录到W&B
+# 访问 https://wandb.ai 查看实验结果
+```
+
+## 🎨 可视化功能
+
+### 生成3D动画
+
+```python
+from human_motion_prediction.evaluation.visualize import MotionVisualizer
+
+visualizer = MotionVisualizer()
+
+# 创建3D动画
+visualizer.create_3d_animation(
+    motion_data=predicted_motion,
+    save_path="results/animation.gif",
+    fps=30
+)
+
+# 比较预测结果
+visualizer.compare_predictions(
+    history=history_motion,
+    ground_truth=gt_motion,
+    predictions={
+        'PISL': pisl_prediction,
+        'Diffusion': diffusion_prediction,
+        'Fusion': fusion_prediction
+    },
+    joint_idx=0,  # 根关节
+    save_path="results/comparison.png"
+)
+```
+
+### 生成误差热力图
+
+```python
+from human_motion_prediction.evaluation.metrics import MotionMetrics
+
+metrics = MotionMetrics()
+visualizer = MotionVisualizer()
+
+# 计算误差
+errors = metrics.compute_metrics(predictions, ground_truth)
+
+# 生成热力图
+visualizer.plot_error_heatmap(
+    errors['joint_errors'],
+    save_path="results/error_heatmap.png"
+)
+```
+
+## 🔍 高级用法
+
+### 自定义数据集
+
+```python
+from human_motion_prediction.data.preprocessing import MotionDataProcessor
+
+# 创建数据处理器
+processor = MotionDataProcessor(
+    normalization='standard',  # 或 'minmax'
+    augmentation=True
+)
+
+# 处理自定义数据
+processed_data = processor.process_data(
+    raw_motion_data,
+    sequence_length=50,
+    prediction_length=25
+)
+```
+
+### 模型微调
+
+```python
+from human_motion_prediction.models.fusion_model import PISLHumanMACFusion
+
+# 加载预训练模型
+model = PISLHumanMACFusion.load_from_checkpoint("checkpoints/pretrained.pth")
+
+# 冻结部分参数
+for param in model.pisl_model.parameters():
+    param.requires_grad = False
+
+# 微调扩散模型部分
+optimizer = torch.optim.Adam(
+    filter(lambda p: p.requires_grad, model.parameters()),
+    lr=1e-4
+)
+```
+
+### 自定义物理约束
+
+```python
+from human_motion_prediction.models.pisl_spline import PhysicsInformedSpline
+
+# 自定义关节限制
+joint_limits = {
+    'shoulder': {'min': -180, 'max': 180},
+    'elbow': {'min': 0, 'max': 150},
+    # ... 其他关节
 }
+
+# 自定义速度限制
+velocity_limits = {
+    'max_linear_velocity': 2.0,  # m/s
+    'max_angular_velocity': 5.0  # rad/s
+}
+
+pisl_model = PhysicsInformedSpline(
+    joint_limits=joint_limits,
+    velocity_limits=velocity_limits
+)
 ```
 
-## 🌟 Star History
+## 📈 性能优化
 
-<p align="center">
-    <a href="https://star-history.com/#LinghaoChan/HumanMAC&Date" target="_blank">
-        <img width="500" src="https://api.star-history.com/svg?repos=LinghaoChan/HumanMAC&type=Date" alt="Star History Chart">
-    </a>
-<p>
+### 内存优化
 
+```bash
+# 使用梯度累积减少内存使用
+python human_motion_prediction/training/train_fusion.py \
+    --gradient_accumulation_steps 4 \
+    --batch_size 8
 
-Contact at: thu DOT lhchen AT gmail DOT com
+# 使用混合精度训练
+python human_motion_prediction/training/train_fusion.py \
+    --mixed_precision
+```
+
+### 推理加速
+
+```bash
+# 使用DDIM快速采样
+python human_motion_prediction/inference.py \
+    --sampling_method ddim \
+    --ddim_steps 50  # 而不是1000步
+
+# 批量推理
+python human_motion_prediction/inference.py \
+    --batch_size 64 \
+    --batch_mode
+```
+
+## 🐛 故障排除
+
+### 常见问题
+
+1. **CUDA内存不足**
+   ```bash
+   # 减少批次大小
+   export CUDA_VISIBLE_DEVICES=0
+   python train_fusion.py --batch_size 16
+   ```
+
+2. **依赖版本冲突**
+   ```bash
+   # 使用conda解决依赖
+   conda env create -f environment.yml
+   ```
+
+3. **数据加载错误**
+   ```bash
+   # 检查数据路径和格式
+   python -c "from human_motion_prediction.data.preprocessing import MotionDataLoader; loader = MotionDataLoader('data/human36m'); print(loader.check_data())"
+   ```
+
+### 调试模式
+
+```bash
+# 启用调试模式
+python human_motion_prediction/training/train_fusion.py --debug
+
+# 详细日志
+python human_motion_prediction/training/train_fusion.py --log_level DEBUG
+```
+
+## 📚 API文档
+
+### 核心类说明
+
+- **`PhysicsInformedSpline`**: PISL样条学习模型
+- **`HumanMACDiffusion`**: HumanMAC扩散模型
+- **`PISLHumanMACFusion`**: 融合预测模型
+- **`MotionDataProcessor`**: 数据预处理工具
+- **`MotionMetrics`**: 评估指标计算
+- **`MotionVisualizer`**: 可视化工具
+
+详细API文档请参考各模块的docstring。
+
+## 🤝 贡献指南
+
+1. Fork项目
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 开启Pull Request
+
+## 📄 许可证
+
+本项目采用MIT许可证 - 详见 [LICENSE](LICENSE) 文件。
+
+## 🙏 致谢
+
+- Human3.6M数据集提供者
+- PyTorch团队
+- 相关研究论文的作者们
+
+## 📞 联系方式
+
+如有问题或建议，请通过以下方式联系：
+- 创建Issue
+- 发送邮件到 [your-email@example.com]
+
+---
+
+**Happy Motion Predicting! 🚀**
